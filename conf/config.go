@@ -16,4 +16,5 @@ type LocalConfig struct {
 	MaxImageSizeMb     int64         `yaml:"max_file_size" env:"MAX_FILE_SIZE"` // in mb
 	SupportedFileTypes []string      `yaml:"supported_file_types"`
 	Listen             config.Listen `yaml:"listen"`
+	HealthcheckPort    uint16        `yaml:"healthcheck_port"`
 }

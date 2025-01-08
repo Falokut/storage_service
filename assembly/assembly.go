@@ -2,9 +2,11 @@ package assembly
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Falokut/go-kit/app"
 	"github.com/Falokut/go-kit/config"
+	"github.com/Falokut/go-kit/healthcheck"
 	"github.com/Falokut/go-kit/http"
 	"github.com/Falokut/go-kit/log"
 	"github.com/Falokut/storage_service/conf"
@@ -12,9 +14,10 @@ import (
 )
 
 type Assembly struct {
-	logger log.Logger
-	server *http.Server
-	cfg    conf.LocalConfig
+	logger             log.Logger
+	server             *http.Server
+	healthcheckManager healthcheck.Manager
+	cfg                conf.LocalConfig
 }
 
 func New(ctx context.Context, logger log.Logger) (*Assembly, error) {
@@ -24,15 +27,23 @@ func New(ctx context.Context, logger log.Logger) (*Assembly, error) {
 		return nil, errors.WithMessage(err, "read local config")
 	}
 	server := http.NewServer(logger)
-	locatorCfg, err := Locator(ctx, logger, cfg)
+	listenHealthcheckPort := cfg.HealthcheckPort
+	if listenHealthcheckPort == 0 {
+		listenHealthcheckPort = cfg.Listen.Port + 1
+	}
+	healthcheckManager := healthcheck.NewHealthManager(logger, fmt.Sprint(listenHealthcheckPort))
+
+	locatorCfg, err := Locator(ctx, logger, cfg, healthcheckManager)
 	if err != nil {
 		return nil, errors.WithMessage(err, "init locator")
 	}
+
 	server.Upgrade(locatorCfg.Mux)
 	return &Assembly{
-		logger: logger,
-		server: server,
-		cfg:    cfg,
+		logger:             logger,
+		server:             server,
+		healthcheckManager: healthcheckManager,
+		cfg:                cfg,
 	}, nil
 }
 
