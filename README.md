@@ -9,7 +9,6 @@
 
 # Content
 
-- [Images storage service](#images-storage-service)
 - [Docs](#swagger-docs)
 - [Author](#author)
 - [License](#license)
