@@ -1,0 +1,189 @@
+basePath: /api/storage-service
+definitions:
+  apierrors.Error:
+    properties:
+      details:
+        additionalProperties: {}
+        type: object
+      errorCode:
+        type: integer
+      errorMessage:
+        type: string
+    type: object
+  domain.FileExistResponse:
+    properties:
+      fileExist:
+        type: boolean
+    type: object
+  domain.UploadFileRequest:
+    properties:
+      category:
+        type: string
+      content:
+        items:
+          type: integer
+        type: array
+      filename:
+        type: string
+    required:
+    - category
+    - content
+    type: object
+  domain.UploadFileResponse:
+    properties:
+      filename:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Сервис для хранения файлов
+  title: storage_service
+  version: 1.0.0
+paths:
+  /file/{category}:
+    post:
+      consumes:
+      - application/json
+      description: Загрузить файл в хранилище
+      parameters:
+      - description: Категория файла
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: request body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.UploadFileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.UploadFileResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+      summary: Upload file
+      tags:
+      - file
+  /file/{category}/{filename}:
+    delete:
+      consumes:
+      - application/json
+      description: Удалить файл из хранилища
+      parameters:
+      - description: Категория файла
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: Идентификатор файла
+        in: path
+        name: filename
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+      summary: Delete file
+      tags:
+      - file
+    get:
+      description: Получить файл из хранилища
+      parameters:
+      - description: Категория файла
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: Идентификатор файла
+        in: path
+        name: filename
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: integer
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+      summary: Get file
+      tags:
+      - file
+  /file/{category}/{filename}/exist:
+    get:
+      consumes:
+      - application/json
+      description: Проверить наличие файла в хранилище
+      parameters:
+      - description: Категория файла
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: Идентификатор файла
+        in: path
+        name: filename
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.FileExistResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+      summary: Is file exist
+      tags:
+      - file
+swagger: "2.0"

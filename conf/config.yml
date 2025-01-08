@@ -1,0 +1,14 @@
+log:
+  level: DEBUG
+  console_output: true
+
+max_file_size: 10
+
+listen:
+  host: 0.0.0.0
+  port: 8080
+
+storage_mode: "MINIO"
+minio:
+  endpoint: "localhost:9000"
+  upload_file_threads: 4

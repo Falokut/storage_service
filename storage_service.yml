@@ -1,0 +1,39 @@
+version: "3.8"
+
+include:
+   - minio_storage/minio_storage.yml
+
+networks:
+   storage_network:
+      name: "storage_network"
+
+services:
+   storage_service:
+      build:
+         dockerfile: alpine.Dockerfile
+      command: ./bin/app
+      ports:
+         - 9080:8080
+      networks:
+         - storage_network
+         - minio_storage_network
+      volumes:
+         - ./conf/:/conf
+         - ./.container_data/images/:/images/
+      environment:
+         MINIO_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY_ID}
+         MINIO_SECRET_ACCESS_KEY: ${MINIO_SECRET_ACCESS_KEY}
+         MINIO_SECURE: ${MINIO_SECURE}
+         STORAGE_MODE: MINIO
+      depends_on:
+         minio_gateway:
+            condition: service_started
+      deploy:
+         mode: replicated
+         replicas: 1
+         endpoint_mode: dnsrr
+         restart_policy:
+            condition: unless-stopped
+      labels:
+         servicename: "storage_service"
+         org.label-schema.group: "monitoring"
