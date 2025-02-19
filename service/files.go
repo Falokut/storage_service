@@ -63,11 +63,13 @@ func (s Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (st
 	}
 
 	saveFileReq := entity.File{
-		Filename:    filename,
-		Category:    req.Category,
-		ContentType: contentType,
-		Content:     req.Content,
-		Size:        int64(len(req.Content)),
+		Metadata: entity.Metadata{
+			Filename:    filename,
+			Category:    req.Category,
+			ContentType: contentType,
+			Size:        int64(len(req.Content)),
+		},
+		Content: req.Content,
 	}
 	err := s.storage.UploadFile(ctx, saveFileReq)
 	if err != nil {

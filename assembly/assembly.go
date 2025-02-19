@@ -52,6 +52,9 @@ func (a *Assembly) Runners() []app.RunnerFunc {
 		func(context.Context) error {
 			return a.server.ListenAndServe(a.cfg.Listen.GetAddress())
 		},
+		func(context.Context) error {
+			return a.healthcheckManager.RunHealthcheckEndpoint()
+		},
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Falokut/go-kit/log"
+
 	"github.com/pkg/errors"
 
 	"github.com/Falokut/go-kit/http/apierrors"
@@ -23,9 +25,13 @@ type StorageService interface {
 type Files struct {
 	service     StorageService
 	maxFileSize int64
+	logger      log.Logger
 }
 
-func NewFiles(service StorageService, maxFileSize int64) Files {
+func NewFiles(
+	service StorageService,
+	maxFileSize int64,
+) Files {
 	return Files{
 		service:     service,
 		maxFileSize: maxFileSize,
@@ -75,8 +81,8 @@ func (c Files) GetFile(ctx context.Context, w http.ResponseWriter, req domain.Fi
 		return c.handleError(err)
 	}
 
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Length", strconv.FormatInt(file.Size, 10))
+	w.Header().Set("Content-Type", file.Metadata.ContentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(file.Metadata.Size, 10))
 	_, err = w.Write(file.Content)
 	return errors.WithMessage(err, "write response")
 }
@@ -122,8 +128,7 @@ func (c Files) IsFileExist(ctx context.Context, req domain.FileRequest) (*domain
 //	@Failure		500			{object}	apierrors.Error
 //	@Router			/file/{category}/{filename} [DELETE]
 func (c Files) DeleteFile(ctx context.Context, req domain.FileRequest) error {
-	err := c.service.DeleteFile(ctx, req)
-	return c.handleError(err)
+	return c.handleError(c.service.DeleteFile(ctx, req))
 }
 
 func (c Files) handleError(err error) error {
@@ -143,6 +148,6 @@ func (c Files) handleError(err error) error {
 	case errors.As(err, &invalidArgError):
 		return apierrors.NewBusinessError(invalidArgError.ErrCode, invalidArgError.Reason, err)
 	default:
-		return err
+		return apierrors.NewInternalServiceError(err)
 	}
 }
