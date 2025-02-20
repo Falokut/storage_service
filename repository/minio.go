@@ -3,6 +3,7 @@ package repository
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/Falokut/go-kit/client/minio"
+	"github.com/Falokut/go-kit/http/types"
 	"github.com/Falokut/go-kit/log"
 	"github.com/Falokut/storage_service/domain"
 	"github.com/Falokut/storage_service/entity"
@@ -52,9 +54,17 @@ func (s MinioStorage) UploadFile(ctx context.Context, req entity.File) error {
 	return nil
 }
 
-func (s MinioStorage) GetFile(ctx context.Context, filename string, category string) (*entity.File, error) {
-	obj, err := s.cli.GetObject(ctx,
-		category, filename, minio.GetObjectOptions{})
+func (s MinioStorage) GetFile(ctx context.Context, filename string, category string, rangeOpt *types.RangeOption) (*entity.File, error) {
+	getOptions := minio.GetObjectOptions{}
+
+	if rangeOpt != nil {
+		if err := getOptions.SetRange(rangeOpt.Start, rangeOpt.End); err != nil {
+			return nil, errors.WithMessage(err, "set range")
+		}
+		fmt.Println(rangeOpt)
+	}
+
+	obj, err := s.cli.GetObject(ctx, category, filename, getOptions)
 	if err != nil {
 		return nil, errors.WithMessage(err, "get object")
 	}
@@ -66,24 +76,37 @@ func (s MinioStorage) GetFile(ctx context.Context, filename string, category str
 	case errResp.StatusCode == http.StatusNotFound:
 		return nil, domain.ErrFileNotFound
 	case err != nil:
-		return nil, errors.WithMessage(err, "get object")
+		return nil, errors.WithMessage(err, "get object info")
 	}
 
-	content := make([]byte, objectInfo.Size)
-	_, err = obj.Read(content)
-	if err != nil && err != io.EOF {
-		return nil, errors.WithMessage(err, "read object")
-	}
-
-	return &entity.File{
+	resp := &entity.File{
 		Metadata: entity.Metadata{
 			Filename:    filename,
 			Category:    category,
 			ContentType: objectInfo.ContentType,
 			Size:        objectInfo.Size,
 		},
-		Content: content,
-	}, nil
+	}
+
+	if rangeOpt != nil {
+		length, err := rangeOpt.Length(objectInfo.Size)
+		if err != nil {
+			return nil, errors.WithMessage(err, "get length")
+		}
+		resp.Content = make([]byte, length)
+		_, err = io.ReadFull(obj, resp.Content)
+		if err != nil && err != io.EOF {
+			return nil, errors.WithMessage(err, "read ranged object")
+		}
+	} else {
+		resp.Content = make([]byte, objectInfo.Size)
+		_, err = io.ReadFull(obj, resp.Content)
+		if err != nil && err != io.EOF {
+			return nil, errors.WithMessage(err, "read full object")
+		}
+	}
+
+	return resp, nil
 }
 
 func (s MinioStorage) IsFileExist(ctx context.Context, filename string, category string) (exist bool, err error) {

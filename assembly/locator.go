@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	mb = 8 << 20
+	kb = 8 << 10
+	mb = kb << 10
 )
 
 type Config struct {
@@ -38,7 +39,7 @@ func Locator(_ context.Context,
 	filesStorage := repository.NewMinioStorage(logger, minioCli)
 
 	filesService := service.NewFiles(filesStorage,
-		cfg.MaxImageSizeMb*mb, cfg.SupportedFileTypes)
+		cfg.MaxImageSizeMb*mb, cfg.MaxRangeRequestLength*mb, cfg.SupportedFileTypes)
 	filesController := controller.NewFiles(filesService,
 		cfg.MaxImageSizeMb*mb)
 	c := routes.Router{

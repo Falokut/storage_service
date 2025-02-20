@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Falokut/go-kit/http/types"
 	"github.com/Falokut/storage_service/domain"
 	"github.com/Falokut/storage_service/entity"
 	"github.com/gabriel-vasile/mimetype"
@@ -15,22 +16,24 @@ import (
 //go:generate mockgen -source=repository.go -destination=mocks/imageStorage.go
 type FileStorage interface {
 	UploadFile(ctx context.Context, file entity.File) error
-	GetFile(ctx context.Context, filename string, category string) (*entity.File, error)
+	GetFile(ctx context.Context, filename string, category string, opt *types.RangeOption) (*entity.File, error)
 	IsFileExist(ctx context.Context, filename string, category string) (bool, error)
 	DeleteFile(ctx context.Context, filename string, category string) error
 }
 
 type Files struct {
-	storage            FileStorage
-	maxFileSize        int64
-	supportedFileTypes []string
+	storage               FileStorage
+	maxRangeRequestLength int64
+	maxFileSize           int64
+	supportedFileTypes    []string
 }
 
-func NewFiles(storage FileStorage, maxFileSize int64, supportedFileTypes []string) Files {
+func NewFiles(storage FileStorage, maxFileSize int64, maxRangeRequestLength int64, supportedFileTypes []string) Files {
 	return Files{
-		storage:            storage,
-		maxFileSize:        maxFileSize,
-		supportedFileTypes: supportedFileTypes,
+		storage:               storage,
+		maxFileSize:           maxFileSize,
+		maxRangeRequestLength: maxRangeRequestLength,
+		supportedFileTypes:    supportedFileTypes,
 	}
 }
 
@@ -79,8 +82,11 @@ func (s Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (st
 	return filename, nil
 }
 
-func (s Files) GetFile(ctx context.Context, req domain.FileRequest) (*entity.File, error) {
-	file, err := s.storage.GetFile(ctx, req.Filename, req.Category)
+func (s Files) GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.File, error) {
+	if opt != nil && s.maxRangeRequestLength > 0 && (opt.End == 0 || (opt.Start-opt.End) > s.maxRangeRequestLength) {
+		opt.End = opt.Start + s.maxRangeRequestLength
+	}
+	file, err := s.storage.GetFile(ctx, req.Filename, req.Category, opt)
 	if err != nil {
 		return nil, errors.WithMessage(err, "get file")
 	}

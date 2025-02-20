@@ -2,14 +2,14 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
-
-	"github.com/Falokut/go-kit/log"
 
 	"github.com/pkg/errors"
 
 	"github.com/Falokut/go-kit/http/apierrors"
+	"github.com/Falokut/go-kit/http/types"
 	"github.com/Falokut/storage_service/domain"
 	"github.com/Falokut/storage_service/entity"
 )
@@ -17,7 +17,7 @@ import (
 //go:generate mockgen -source=service.go -destination=mocks/service.go
 type StorageService interface {
 	UploadFile(ctx context.Context, req domain.UploadFileRequest) (string, error)
-	GetFile(ctx context.Context, req domain.FileRequest) (*entity.File, error)
+	GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.File, error)
 	IsFileExist(ctx context.Context, req domain.FileRequest) (bool, error)
 	DeleteFile(ctx context.Context, req domain.FileRequest) error
 }
@@ -25,7 +25,6 @@ type StorageService interface {
 type Files struct {
 	service     StorageService
 	maxFileSize int64
-	logger      log.Logger
 }
 
 func NewFiles(
@@ -75,14 +74,30 @@ func (c Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (*d
 //	@Failure		404			{object}	apierrors.Error
 //	@Failure		500			{object}	apierrors.Error
 //	@Router			/file/{category}/{filename} [GET]
-func (c Files) GetFile(ctx context.Context, w http.ResponseWriter, req domain.FileRequest) error {
-	file, err := c.service.GetFile(ctx, req)
+func (c Files) GetFile(ctx context.Context, w http.ResponseWriter, rangeOpt *types.RangeOption, req domain.FileRequest) error {
+	file, err := c.service.GetFile(ctx, req, nil)
 	if err != nil {
 		return c.handleError(err)
 	}
 
+	fileSize := int64(len(file.Content))
 	w.Header().Set("Content-Type", file.Metadata.ContentType)
-	w.Header().Set("Content-Length", strconv.FormatInt(file.Metadata.Size, 10))
+	w.Header().Set("Content-Length", strconv.FormatInt(fileSize, 10))
+	if rangeOpt != nil {
+		lastByte := rangeOpt.Start + fileSize - 1
+		if lastByte > file.Metadata.Size {
+			lastByte = file.Metadata.Size - 1
+		}
+		w.Header().Set("Content-Range",
+			fmt.Sprintf("bytes %d-%d/%d",
+				rangeOpt.Start,
+				lastByte,
+				file.Metadata.Size,
+			),
+		)
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.WriteHeader(http.StatusPartialContent)
+	}
 	_, err = w.Write(file.Content)
 	return errors.WithMessage(err, "write response")
 }
