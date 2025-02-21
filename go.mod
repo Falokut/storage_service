@@ -35,7 +35,7 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
-	github.com/Falokut/go-kit v0.0.0-20250220092136-13f00b840e7f
+	github.com/Falokut/go-kit v0.0.0-20250221041742-ebed5899fafd
 	github.com/gabriel-vasile/mimetype v1.4.3
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/pkg/errors v0.9.1

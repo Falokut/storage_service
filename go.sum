@@ -3,6 +3,10 @@ github.com/BurntSushi/toml v1.3.2 h1:o7IhLm0Msx3BaB+n3Ag7L8EVlByGnpq14C4YWiu/gL8
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/Falokut/go-kit v0.0.0-20250220092136-13f00b840e7f h1:jsTao2NStQ82KBt9P/9J+3utIdhKZDiaou+NK7GjTeE=
 github.com/Falokut/go-kit v0.0.0-20250220092136-13f00b840e7f/go.mod h1:mGsxfHbbgIeULyNCbaUn2i/R7tH3lXlIKcYTaU4RLHo=
+github.com/Falokut/go-kit v0.0.0-20250221041143-6b79c33a9457 h1:6SjK9fPHSQQx9uaQJMais98RC0Crmh6458c6KsenOQI=
+github.com/Falokut/go-kit v0.0.0-20250221041143-6b79c33a9457/go.mod h1:iSz6M2PXdajBaqNR+SpTp78YvKY7o4SuHzNgPbPBGP0=
+github.com/Falokut/go-kit v0.0.0-20250221041742-ebed5899fafd h1:usBXaa8ebXJGPyPTFMrgZhzWFFzlBEm0Syxw6C++Y34=
+github.com/Falokut/go-kit v0.0.0-20250221041742-ebed5899fafd/go.mod h1:iSz6M2PXdajBaqNR+SpTp78YvKY7o4SuHzNgPbPBGP0=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

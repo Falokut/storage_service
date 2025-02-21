@@ -2,9 +2,7 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/pkg/errors"
 
@@ -74,32 +72,26 @@ func (c Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (*d
 //	@Failure		404			{object}	apierrors.Error
 //	@Failure		500			{object}	apierrors.Error
 //	@Router			/file/{category}/{filename} [GET]
-func (c Files) GetFile(ctx context.Context, w http.ResponseWriter, rangeOpt *types.RangeOption, req domain.FileRequest) error {
+func (c Files) GetFile(ctx context.Context, rangeOpt *types.RangeOption, req domain.FileRequest) (*types.FileData, error) {
 	file, err := c.service.GetFile(ctx, req, nil)
 	if err != nil {
-		return c.handleError(err)
+		return nil, c.handleError(err)
 	}
 
-	fileSize := int64(len(file.Content))
-	w.Header().Set("Content-Type", file.Metadata.ContentType)
-	w.Header().Set("Content-Length", strconv.FormatInt(fileSize, 10))
+	contentSize := int64(len(file.Content))
+	var partialDataInfo *types.PartialDataInfo
 	if rangeOpt != nil {
-		lastByte := rangeOpt.Start + fileSize - 1
-		if lastByte > file.Metadata.Size {
-			lastByte = file.Metadata.Size - 1
+		partialDataInfo = &types.PartialDataInfo{
+			RangeStartByte: rangeOpt.Start,
+			TotalDataSize:  file.Metadata.Size,
 		}
-		w.Header().Set("Content-Range",
-			fmt.Sprintf("bytes %d-%d/%d",
-				rangeOpt.Start,
-				lastByte,
-				file.Metadata.Size,
-			),
-		)
-		w.Header().Set("Accept-Ranges", "bytes")
-		w.WriteHeader(http.StatusPartialContent)
 	}
-	_, err = w.Write(file.Content)
-	return errors.WithMessage(err, "write response")
+	return &types.FileData{
+		PartialDataInfo: partialDataInfo,
+		ContentType:     file.Metadata.ContentType,
+		ContentSize:     contentSize,
+		Content:         file.Content,
+	}, nil
 }
 
 // IsFileExist
