@@ -1,8 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"slices"
 
 	"github.com/Falokut/go-kit/http/types"
@@ -15,8 +17,8 @@ import (
 
 //go:generate mockgen -source=repository.go -destination=mocks/imageStorage.go
 type FileStorage interface {
-	UploadFile(ctx context.Context, file entity.File) error
-	GetFile(ctx context.Context, filename string, category string, opt *types.RangeOption) (*entity.File, error)
+	UploadFile(ctx context.Context, file entity.Metadata, reader io.Reader) error
+	GetFile(ctx context.Context, filename string, category string, opt *types.RangeOption) (*entity.Metadata, io.Reader, error)
 	IsFileExist(ctx context.Context, filename string, category string) (bool, error)
 	DeleteFile(ctx context.Context, filename string, category string) error
 }
@@ -37,22 +39,36 @@ func NewFiles(storage FileStorage, maxFileSize int64, maxRangeRequestLength int6
 	}
 }
 
-func (s Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (string, error) {
-	fileSize := int64(len(req.Content))
-	if fileSize == 0 {
+func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (string, error) {
+	if req.ContentReader == nil || req.Size <= 0 {
 		return "",
 			domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
 	}
-	if fileSize > s.maxFileSize {
+	if s.maxFileSize > 0 && req.Size >= s.maxFileSize {
 		return "",
-			domain.NewInvalidArgumentError(
-				fmt.Sprintf("file is too large max file size: %d, file size: %d",
-					s.maxFileSize, fileSize),
-				domain.ErrCodeFileTooBig,
-			)
+			domain.NewInvalidArgumentError("file size too big", domain.ErrCodeFileTooBig)
 	}
 
-	contentType := mimetype.Detect(req.Content).String()
+	var readSeeker io.ReadSeeker
+	if seeker, ok := req.ContentReader.(io.ReadSeeker); ok {
+		readSeeker = seeker
+	} else {
+		buf, err := io.ReadAll(req.ContentReader)
+		if err != nil {
+			return "", errors.WithMessage(err, "read content for mime detection")
+		}
+		readSeeker = bytes.NewReader(buf)
+	}
+	contentTypeMime, err := mimetype.DetectReader(readSeeker)
+	if err != nil {
+		return "", errors.WithMessage(err, "detect file mime type")
+	}
+	_, err = readSeeker.Seek(0, io.SeekStart)
+	if err != nil {
+		return "", errors.WithMessage(err, "move reader to seek start")
+	}
+
+	contentType := contentTypeMime.String()
 	if len(s.supportedFileTypes) != 0 && !slices.Contains(s.supportedFileTypes, contentType) {
 		return "", domain.NewInvalidArgumentError(
 			fmt.Sprintf("file type is not supported. file type: '%s'", contentType),
@@ -61,36 +77,36 @@ func (s Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (st
 	}
 
 	filename := req.Filename
-	if len(filename) == 0 {
+	if filename == "" {
 		filename = uuid.NewString()
 	}
-
-	saveFileReq := entity.File{
-		Metadata: entity.Metadata{
-			Filename:    filename,
-			Category:    req.Category,
-			ContentType: contentType,
-			Size:        int64(len(req.Content)),
-		},
-		Content: req.Content,
+	metadata := entity.Metadata{
+		Filename:    filename,
+		Category:    req.Category,
+		ContentType: contentType,
+		Size:        req.Size,
 	}
-	err := s.storage.UploadFile(ctx, saveFileReq)
+
+	err = s.storage.UploadFile(ctx, metadata, readSeeker)
 	if err != nil {
 		return "", errors.WithMessage(err, "save file")
 	}
-
-	return filename, nil
+	return metadata.Filename, nil
 }
 
-func (s Files) GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.File, error) {
-	if opt != nil && s.maxRangeRequestLength > 0 && (opt.End == 0 || (opt.Start-opt.End) > s.maxRangeRequestLength) {
+func (s Files) GetFile(
+	ctx context.Context,
+	req domain.FileRequest,
+	opt *types.RangeOption,
+) (*entity.Metadata, io.Reader, error) {
+	if opt != nil && (opt.End == 0 || opt.Start-opt.End > s.maxRangeRequestLength) {
 		opt.End = opt.Start + s.maxRangeRequestLength
 	}
-	file, err := s.storage.GetFile(ctx, req.Filename, req.Category, opt)
+	metadata, contentReader, err := s.storage.GetFile(ctx, req.Filename, req.Category, opt)
 	if err != nil {
-		return nil, errors.WithMessage(err, "get file")
+		return nil, nil, errors.WithMessage(err, "get file")
 	}
-	return file, nil
+	return metadata, contentReader, nil
 }
 
 func (s Files) IsFileExist(ctx context.Context, req domain.FileRequest) (bool, error) {

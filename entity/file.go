@@ -1,13 +1,17 @@
 package entity
 
-type File struct {
-	Metadata Metadata
-	Content  []byte
-}
+import "io"
 
 type Metadata struct {
 	Filename    string
 	Category    string
 	ContentType string
 	Size        int64
+}
+
+type UploadFileRequest struct {
+	Filename      string
+	Category      string
+	ContentReader io.Reader
+	Size          int64
 }

@@ -15,20 +15,6 @@ definitions:
       fileExist:
         type: boolean
     type: object
-  domain.UploadFileRequest:
-    properties:
-      category:
-        type: string
-      content:
-        items:
-          type: integer
-        type: array
-      filename:
-        type: string
-    required:
-    - category
-    - content
-    type: object
   domain.UploadFileResponse:
     properties:
       filename:
@@ -43,7 +29,7 @@ paths:
   /file/{category}:
     post:
       consumes:
-      - application/json
+      - '*/*'
       description: Загрузить файл в хранилище
       parameters:
       - description: Категория файла
@@ -51,14 +37,20 @@ paths:
         name: category
         required: true
         type: string
-      - description: request body
+      - description: имя файла
+        in: query
+        name: filename
+        type: string
+      - description: содержимое файла
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/domain.UploadFileRequest'
+          items:
+            type: integer
+          type: array
       produces:
-      - application/json
+      - '*/*'
       responses:
         "200":
           description: OK

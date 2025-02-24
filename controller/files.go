@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"io"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -14,24 +15,19 @@ import (
 
 //go:generate mockgen -source=service.go -destination=mocks/service.go
 type StorageService interface {
-	UploadFile(ctx context.Context, req domain.UploadFileRequest) (string, error)
-	GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.File, error)
+	UploadFile(ctx context.Context, req entity.UploadFileRequest) (string, error)
+	GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.Metadata, io.Reader, error)
 	IsFileExist(ctx context.Context, req domain.FileRequest) (bool, error)
 	DeleteFile(ctx context.Context, req domain.FileRequest) error
 }
 
 type Files struct {
-	service     StorageService
-	maxFileSize int64
+	service StorageService
 }
 
-func NewFiles(
-	service StorageService,
-	maxFileSize int64,
-) Files {
+func NewFiles(service StorageService) Files {
 	return Files{
-		service:     service,
-		maxFileSize: maxFileSize,
+		service: service,
 	}
 }
 
@@ -40,18 +36,26 @@ func NewFiles(
 //	@Tags			file
 //	@Summary		Upload file
 //	@Description	Загрузить файл в хранилище
-//	@Accept			json
-//	@Produce		json
+//	@Accept			*/*
+//	@Produce		*/*
 //
-//	@Param			category	path		string						true	"Категория файла"
+//	@Param			category	path		string	true	"Категория файла"
+//	@Param			filename	path		string	false	"имя файла"
 //
-//	@Param			body		body		domain.UploadFileRequest	true	"request body"
+//	@Param			body		body		[]byte	true	"содержимое файла"
+//
 //	@Success		200			{object}	domain.UploadFileResponse
 //	@Failure		400			{object}	apierrors.Error
 //	@Failure		500			{object}	apierrors.Error
 //	@Router			/file/{category} [POST]
-func (c Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (*domain.UploadFileResponse, error) {
-	filename, err := c.service.UploadFile(ctx, req)
+func (c Files) UploadFile(ctx context.Context, r *http.Request, req domain.UploadFileRequest) (*domain.UploadFileResponse, error) {
+	filename, err := c.service.UploadFile(ctx,
+		entity.UploadFileRequest{
+			Filename:      req.Filename,
+			Category:      req.Category,
+			ContentReader: r.Body,
+			Size:          r.ContentLength,
+		})
 	if err != nil {
 		return nil, c.handleError(err)
 	}
@@ -73,24 +77,23 @@ func (c Files) UploadFile(ctx context.Context, req domain.UploadFileRequest) (*d
 //	@Failure		500			{object}	apierrors.Error
 //	@Router			/file/{category}/{filename} [GET]
 func (c Files) GetFile(ctx context.Context, rangeOpt *types.RangeOption, req domain.FileRequest) (*types.FileData, error) {
-	file, err := c.service.GetFile(ctx, req, nil)
+	metadata, reader, err := c.service.GetFile(ctx, req, rangeOpt)
 	if err != nil {
 		return nil, c.handleError(err)
 	}
 
-	contentSize := int64(len(file.Content))
 	var partialDataInfo *types.PartialDataInfo
 	if rangeOpt != nil {
 		partialDataInfo = &types.PartialDataInfo{
 			RangeStartByte: rangeOpt.Start,
-			TotalDataSize:  file.Metadata.Size,
+			RangeEndByte:   rangeOpt.End,
 		}
 	}
 	return &types.FileData{
 		PartialDataInfo: partialDataInfo,
-		ContentType:     file.Metadata.ContentType,
-		ContentSize:     contentSize,
-		Content:         file.Content,
+		ContentType:     metadata.ContentType,
+		ContentReader:   reader,
+		TotalFileSize:   metadata.Size,
 	}, nil
 }
 

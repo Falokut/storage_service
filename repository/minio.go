@@ -1,9 +1,7 @@
 package repository
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -29,84 +27,64 @@ func NewMinioStorage(logger log.Logger, cli minio_client.Client) MinioStorage {
 	}
 }
 
-func (s MinioStorage) UploadFile(ctx context.Context, req entity.File) error {
-	err := s.createBucketIfNotExist(ctx, req.Metadata.Category)
+func (s MinioStorage) UploadFile(ctx context.Context, metadata entity.Metadata, reader io.Reader) error {
+	err := s.createBucketIfNotExist(ctx, metadata.Category)
 	if err != nil {
 		return errors.WithMessage(err, "create bucket if not exits")
 	}
 
-	reader := bytes.NewReader(req.Content)
 	s.logger.Info(ctx, "save file",
-		log.Any("bucketName", req.Metadata.Category),
-		log.Any("filename", req.Metadata.Filename),
+		log.Any("bucketName", metadata.Category),
+		log.Any("filename", metadata.Filename),
 	)
 
 	putOptions := minio.PutObjectOptions{
 		UserMetadata: map[string]string{
-			"Name": req.Metadata.Filename,
+			"Name": metadata.Filename,
 		},
-		ContentType: req.Metadata.ContentType,
+		ContentType: metadata.ContentType,
 	}
-	_, err = s.cli.PutObject(ctx, req.Metadata.Category, req.Metadata.Filename, reader, req.Metadata.Size, putOptions)
+	_, err = s.cli.PutObject(ctx, metadata.Category, metadata.Filename, reader, metadata.Size, putOptions)
 	if err != nil {
 		return errors.WithMessage(err, "put object")
 	}
 	return nil
 }
 
-func (s MinioStorage) GetFile(ctx context.Context, filename string, category string, rangeOpt *types.RangeOption) (*entity.File, error) {
+func (s MinioStorage) GetFile(
+	ctx context.Context,
+	filename string,
+	category string,
+	rangeOpt *types.RangeOption,
+) (*entity.Metadata, io.Reader, error) {
 	getOptions := minio.GetObjectOptions{}
 
 	if rangeOpt != nil {
-		if err := getOptions.SetRange(rangeOpt.Start, rangeOpt.End); err != nil {
-			return nil, errors.WithMessage(err, "set range")
+		err := getOptions.SetRange(rangeOpt.Start, rangeOpt.End)
+		if err != nil {
+			return nil, nil, errors.WithMessage(err, "set range")
 		}
-		fmt.Println(rangeOpt)
 	}
 
 	obj, err := s.cli.GetObject(ctx, category, filename, getOptions)
 	if err != nil {
-		return nil, errors.WithMessage(err, "get object")
+		return nil, nil, errors.WithMessage(err, "get object")
 	}
-	defer obj.Close()
 
 	objectInfo, err := obj.Stat()
 	errResp := minio.ToErrorResponse(err)
 	switch {
 	case errResp.StatusCode == http.StatusNotFound:
-		return nil, domain.ErrFileNotFound
+		return nil, nil, domain.ErrFileNotFound
 	case err != nil:
-		return nil, errors.WithMessage(err, "get object info")
+		return nil, nil, errors.WithMessage(err, "get object info")
 	}
-
-	resp := &entity.File{
-		Metadata: entity.Metadata{
-			Filename:    filename,
-			Category:    category,
-			ContentType: objectInfo.ContentType,
-			Size:        objectInfo.Size,
-		},
-	}
-
-	if rangeOpt != nil {
-		length, err := rangeOpt.Length(objectInfo.Size)
-		if err != nil {
-			return nil, errors.WithMessage(err, "get length")
-		}
-		resp.Content = make([]byte, length)
-		_, err = io.ReadFull(obj, resp.Content)
-		if err != nil && err != io.EOF {
-			return nil, errors.WithMessage(err, "read ranged object")
-		}
-	} else {
-		resp.Content = make([]byte, objectInfo.Size)
-		_, err = io.ReadFull(obj, resp.Content)
-		if err != nil && err != io.EOF {
-			return nil, errors.WithMessage(err, "read full object")
-		}
-	}
-
-	return resp, nil
+	return &entity.Metadata{
+		Filename:    filename,
+		Category:    category,
+		ContentType: objectInfo.ContentType,
+		Size:        objectInfo.Size,
+	}, obj, nil
 }
 
 func (s MinioStorage) IsFileExist(ctx context.Context, filename string, category string) (exist bool, err error) {

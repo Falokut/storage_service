@@ -49,8 +49,19 @@ func New(ctx context.Context, logger log.Logger) (*Assembly, error) {
 
 func (a *Assembly) Runners() []app.RunnerFunc {
 	return []app.RunnerFunc{
-		func(context.Context) error {
-			return a.server.ListenAndServe(a.cfg.Listen.GetAddress())
+		func(ctx context.Context) error {
+			a.logger.Debug(ctx, "run http server", log.Any("host", a.cfg.Listen.Host), log.Any("port", a.cfg.Listen.Port))
+			err := a.server.ListenAndServe(a.cfg.Listen.GetAddress())
+			if err != nil {
+				a.logger.Debug(ctx,
+					"error while listen and serve http server",
+					log.Any("host", a.cfg.Listen.Host),
+					log.Any("port", a.cfg.Listen.Port),
+					log.Any("error", err.Error()),
+				)
+				return err
+			}
+			return nil
 		},
 		func(context.Context) error {
 			return a.healthcheckManager.RunHealthcheckEndpoint()

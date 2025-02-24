@@ -36,6 +36,11 @@ func endpointDescriptors(r Router) []EndpointDescriptor {
 			Handler: r.Files.UploadFile,
 		},
 		{
+			Method:  http.MethodPost,
+			Path:    "/file/:category/:filename",
+			Handler: r.Files.UploadFile,
+		},
+		{
 			Method:  http.MethodGet,
 			Path:    "/file/:category/:filename",
 			Handler: r.Files.GetFile,

@@ -2,8 +2,7 @@ package domain
 
 type UploadFileRequest struct {
 	Category string `validate:"required"`
-	Filename string
-	Content  []byte `validate:"required"`
+	Filename string `validate:"required"`
 }
 
 type UploadFileResponse struct {
