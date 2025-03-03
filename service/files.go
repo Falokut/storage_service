@@ -40,15 +40,6 @@ func NewFiles(storage FileStorage, maxFileSize int64, maxRangeRequestLength int6
 }
 
 func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (string, error) {
-	if req.ContentReader == nil || req.Size <= 0 {
-		return "",
-			domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
-	}
-	if s.maxFileSize > 0 && req.Size >= s.maxFileSize {
-		return "",
-			domain.NewInvalidArgumentError("file size too big", domain.ErrCodeFileTooBig)
-	}
-
 	var readSeeker io.ReadSeeker
 	if seeker, ok := req.ContentReader.(io.ReadSeeker); ok {
 		readSeeker = seeker
@@ -59,6 +50,20 @@ func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (st
 		}
 		readSeeker = bytes.NewReader(buf)
 	}
+
+	fileSize, err := getFileSize(readSeeker)
+	if err != nil {
+		return "", errors.WithMessage(err, "get file size")
+	}
+	if req.ContentReader == nil || fileSize <= 0 {
+		return "",
+			domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
+	}
+	if s.maxFileSize > 0 && fileSize >= s.maxFileSize {
+		return "",
+			domain.NewInvalidArgumentError("file size too big", domain.ErrCodeFileTooBig)
+	}
+
 	contentTypeMime, err := mimetype.DetectReader(readSeeker)
 	if err != nil {
 		return "", errors.WithMessage(err, "detect file mime type")
@@ -84,7 +89,7 @@ func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (st
 		Filename:    filename,
 		Category:    req.Category,
 		ContentType: contentType,
-		Size:        req.Size,
+		Size:        fileSize,
 	}
 
 	err = s.storage.UploadFile(ctx, metadata, readSeeker)
@@ -123,4 +128,20 @@ func (s Files) DeleteFile(ctx context.Context, req domain.FileRequest) error {
 		return errors.WithMessage(err, "delete file")
 	}
 	return nil
+}
+
+func getFileSize(r io.ReadSeeker) (int64, error) {
+	currentPos, err := r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0, err
+	}
+	size, err := r.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, err
+	}
+	_, err = r.Seek(currentPos, io.SeekStart)
+	if err != nil {
+		return 0, err
+	}
+	return size, nil
 }

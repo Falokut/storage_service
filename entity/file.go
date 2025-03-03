@@ -13,5 +13,4 @@ type UploadFileRequest struct {
 	Filename      string
 	Category      string
 	ContentReader io.Reader
-	Size          int64
 }
