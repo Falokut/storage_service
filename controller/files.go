@@ -54,7 +54,6 @@ func (c Files) UploadFile(ctx context.Context, r *http.Request, req domain.Uploa
 			Filename:      req.Filename,
 			Category:      req.Category,
 			ContentReader: r.Body,
-			Size:          r.ContentLength,
 		})
 	if err != nil {
 		return nil, c.handleError(err)

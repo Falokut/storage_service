@@ -10,7 +10,6 @@ var (
 
 const (
 	ErrCodeFileNotFound        = 600
-	ErrCodeFileTooBig          = 601
 	ErrCodeFileHasZeroSize     = 602
 	ErrCodeUnsupportedFileType = 603
 	ErrCodeInvalidRange        = 604

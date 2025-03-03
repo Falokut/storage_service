@@ -40,14 +40,13 @@ func Locator(_ context.Context,
 	filesStorage := repository.NewMinioStorage(logger, minioCli)
 
 	filesService := service.NewFiles(filesStorage,
-		cfg.MaxFileSizeMb*mb,
 		cfg.MaxRangeRequestLength*kb,
 		cfg.SupportedFileTypes,
 	)
 	files := controller.NewFiles(filesService)
 	c := routes.Router{Files: files}
 
-	defaultWrapper := newWrapper(logger, cfg.MaxFileSizeMb+mb)
+	defaultWrapper := newWrapper(logger, cfg.MaxFileSizeMb*mb)
 	mux := c.InitRoutes(defaultWrapper)
 	return Config{
 		Mux: mux,

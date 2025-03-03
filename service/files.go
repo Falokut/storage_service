@@ -26,49 +26,44 @@ type FileStorage interface {
 type Files struct {
 	storage               FileStorage
 	maxRangeRequestLength int64
-	maxFileSize           int64
 	supportedFileTypes    []string
 }
 
-func NewFiles(storage FileStorage, maxFileSize int64, maxRangeRequestLength int64, supportedFileTypes []string) Files {
+func NewFiles(storage FileStorage, maxRangeRequestLength int64, supportedFileTypes []string) Files {
 	return Files{
 		storage:               storage,
-		maxFileSize:           maxFileSize,
 		maxRangeRequestLength: maxRangeRequestLength,
 		supportedFileTypes:    supportedFileTypes,
 	}
 }
 
 func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (string, error) {
-	if req.ContentReader == nil || req.Size <= 0 {
-		return "",
-			domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
-	}
-	if s.maxFileSize > 0 && req.Size >= s.maxFileSize {
-		return "",
-			domain.NewInvalidArgumentError("file size too big", domain.ErrCodeFileTooBig)
+	if req.ContentReader == nil {
+		return "", domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
 	}
 
-	var readSeeker io.ReadSeeker
-	if seeker, ok := req.ContentReader.(io.ReadSeeker); ok {
-		readSeeker = seeker
-	} else {
-		buf, err := io.ReadAll(req.ContentReader)
+	readSeeker, ok := req.ContentReader.(io.ReadSeeker)
+	var buf []byte
+	var err error
+
+	if !ok {
+		buf, err = io.ReadAll(req.ContentReader)
 		if err != nil {
 			return "", errors.WithMessage(err, "read content for mime detection")
 		}
 		readSeeker = bytes.NewReader(buf)
 	}
-	contentTypeMime, err := mimetype.DetectReader(readSeeker)
+
+	var contentType string
+	if ok {
+		contentType, err = detectMimeTypeFromSeeker(readSeeker)
+	} else {
+		contentType = mimetype.Detect(buf).String()
+	}
 	if err != nil {
 		return "", errors.WithMessage(err, "detect file mime type")
 	}
-	_, err = readSeeker.Seek(0, io.SeekStart)
-	if err != nil {
-		return "", errors.WithMessage(err, "move reader to seek start")
-	}
 
-	contentType := contentTypeMime.String()
 	if len(s.supportedFileTypes) != 0 && !slices.Contains(s.supportedFileTypes, contentType) {
 		return "", domain.NewInvalidArgumentError(
 			fmt.Sprintf("file type is not supported. file type: '%s'", contentType),
@@ -76,21 +71,36 @@ func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (st
 		)
 	}
 
+	fileSize, err := readSeeker.Seek(0, io.SeekEnd)
+	if err != nil {
+		return "", err
+	}
+	if fileSize <= 0 {
+		return "", domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
+	}
+
 	filename := req.Filename
 	if filename == "" {
 		filename = uuid.NewString()
 	}
+
 	metadata := entity.Metadata{
 		Filename:    filename,
 		Category:    req.Category,
 		ContentType: contentType,
-		Size:        req.Size,
+		Size:        fileSize,
+	}
+
+	_, err = readSeeker.Seek(0, io.SeekStart)
+	if err != nil {
+		return "", errors.WithMessage(err, "reset reader position")
 	}
 
 	err = s.storage.UploadFile(ctx, metadata, readSeeker)
 	if err != nil {
 		return "", errors.WithMessage(err, "save file")
 	}
+
 	return metadata.Filename, nil
 }
 
@@ -123,4 +133,17 @@ func (s Files) DeleteFile(ctx context.Context, req domain.FileRequest) error {
 		return errors.WithMessage(err, "delete file")
 	}
 	return nil
+}
+
+func detectMimeTypeFromSeeker(rs io.ReadSeeker) (string, error) {
+	peekBuf := make([]byte, 512)
+	n, err := rs.Read(peekBuf)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+	_, err = rs.Seek(0, io.SeekStart)
+	if err != nil {
+		return "", err
+	}
+	return mimetype.Detect(peekBuf[:n]).String(), nil
 }
