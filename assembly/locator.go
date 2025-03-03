@@ -3,8 +3,9 @@ package assembly
 import (
 	"context"
 
-	"github.com/Falokut/go-kit/client/minio"
+	minio_client "github.com/Falokut/go-kit/client/minio"
 	"github.com/Falokut/go-kit/healthcheck"
+	http2 "github.com/Falokut/go-kit/http"
 	"github.com/Falokut/go-kit/http/endpoint"
 	"github.com/Falokut/go-kit/http/router"
 	"github.com/Falokut/go-kit/log"
@@ -39,16 +40,28 @@ func Locator(_ context.Context,
 	filesStorage := repository.NewMinioStorage(logger, minioCli)
 
 	filesService := service.NewFiles(filesStorage,
-		cfg.MaxImageSizeMb*mb,
+		cfg.MaxFileSizeMb*mb,
 		cfg.MaxRangeRequestLength*kb,
 		cfg.SupportedFileTypes,
 	)
 	files := controller.NewFiles(filesService)
 	c := routes.Router{Files: files}
 
-	defaultWrapper := endpoint.DefaultWrapper(logger, endpoint.Log(logger, false, false))
+	defaultWrapper := newWrapper(logger, cfg.MaxFileSizeMb+mb)
 	mux := c.InitRoutes(defaultWrapper)
 	return Config{
 		Mux: mux,
 	}, nil
+}
+
+func newWrapper(logger log.Logger, maxRequestBody int64) endpoint.Wrapper {
+	wrapper := endpoint.DefaultWrapper(logger, nil)
+	wrapper.Middlewares = []http2.Middleware{
+		endpoint.MaxRequestBodySize(maxRequestBody),
+		endpoint.RequestId(),
+		http2.Middleware(endpoint.Log(logger, false, false)),
+		endpoint.ErrorHandler(logger),
+		endpoint.Recovery(),
+	}
+	return wrapper
 }

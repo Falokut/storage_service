@@ -5,9 +5,8 @@ import (
 )
 
 type LocalConfig struct {
-	BaseLocalStoragePath  string        `yaml:"base_local_storage_path" env:"BASE_LOCAL_STORAGE_PATH"`
 	MinioConfig           config.Minio  `yaml:"minio"`
-	MaxImageSizeMb        int64         `yaml:"max_file_size" env:"MAX_FILE_SIZE"` // in mb
+	MaxFileSizeMb         int64         `validate:"required,gte=1" yaml:"max_file_size" env:"MAX_FILE_SIZE"` // in mb
 	SupportedFileTypes    []string      `yaml:"supported_file_types"`
 	MaxRangeRequestLength int64         `validate:"required" yaml:"max_range_request_length" env:"MAX_RANGE_REQUEST_LENGTH"` // in kb
 	Listen                config.Listen `yaml:"listen"`
