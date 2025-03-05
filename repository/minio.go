@@ -56,7 +56,7 @@ func (s MinioStorage) GetFile(
 	filename string,
 	category string,
 	rangeOpt *types.RangeOption,
-) (*entity.Metadata, io.Reader, error) {
+) (*entity.Metadata, io.ReadSeekCloser, error) {
 	getOptions := minio.GetObjectOptions{}
 
 	if rangeOpt != nil {
@@ -70,21 +70,20 @@ func (s MinioStorage) GetFile(
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "get object")
 	}
-
 	objectInfo, err := obj.Stat()
-	errResp := minio.ToErrorResponse(err)
 	switch {
-	case errResp.StatusCode == http.StatusNotFound:
+	case minio.ToErrorResponse(err).StatusCode == http.StatusNotFound:
 		return nil, nil, domain.ErrFileNotFound
 	case err != nil:
 		return nil, nil, errors.WithMessage(err, "get object info")
+	default:
+		return &entity.Metadata{
+			Filename:    filename,
+			Category:    category,
+			ContentType: objectInfo.ContentType,
+			Size:        objectInfo.Size,
+		}, obj, nil
 	}
-	return &entity.Metadata{
-		Filename:    filename,
-		Category:    category,
-		ContentType: objectInfo.ContentType,
-		Size:        objectInfo.Size,
-	}, obj, nil
 }
 
 func (s MinioStorage) IsFileExist(ctx context.Context, filename string, category string) (exist bool, err error) {

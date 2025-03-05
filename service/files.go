@@ -18,22 +18,20 @@ import (
 //go:generate mockgen -source=repository.go -destination=mocks/imageStorage.go
 type FileStorage interface {
 	UploadFile(ctx context.Context, file entity.Metadata, reader io.Reader) error
-	GetFile(ctx context.Context, filename string, category string, opt *types.RangeOption) (*entity.Metadata, io.Reader, error)
+	GetFile(ctx context.Context, filename string, category string, opt *types.RangeOption) (*entity.Metadata, io.ReadSeekCloser, error)
 	IsFileExist(ctx context.Context, filename string, category string) (bool, error)
 	DeleteFile(ctx context.Context, filename string, category string) error
 }
 
 type Files struct {
-	storage               FileStorage
-	maxRangeRequestLength int64
-	supportedFileTypes    []string
+	storage            FileStorage
+	supportedFileTypes []string
 }
 
-func NewFiles(storage FileStorage, maxRangeRequestLength int64, supportedFileTypes []string) Files {
+func NewFiles(storage FileStorage, supportedFileTypes []string) Files {
 	return Files{
-		storage:               storage,
-		maxRangeRequestLength: maxRangeRequestLength,
-		supportedFileTypes:    supportedFileTypes,
+		storage:            storage,
+		supportedFileTypes: supportedFileTypes,
 	}
 }
 
@@ -108,10 +106,7 @@ func (s Files) GetFile(
 	ctx context.Context,
 	req domain.FileRequest,
 	opt *types.RangeOption,
-) (*entity.Metadata, io.Reader, error) {
-	if opt != nil && (opt.End == 0 || opt.Start-opt.End > s.maxRangeRequestLength) {
-		opt.End = opt.Start + s.maxRangeRequestLength
-	}
+) (*entity.Metadata, io.ReadSeekCloser, error) {
 	metadata, contentReader, err := s.storage.GetFile(ctx, req.Filename, req.Category, opt)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "get file")

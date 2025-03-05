@@ -3,7 +3,6 @@ log:
   console_output: true
 
 max_file_size: 10
-max_range_request_length: 5
 
 listen:
   host: 0.0.0.0

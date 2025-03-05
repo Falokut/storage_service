@@ -40,7 +40,6 @@ func Locator(_ context.Context,
 	filesStorage := repository.NewMinioStorage(logger, minioCli)
 
 	filesService := service.NewFiles(filesStorage,
-		cfg.MaxRangeRequestLength*kb,
 		cfg.SupportedFileTypes,
 	)
 	files := controller.NewFiles(filesService)

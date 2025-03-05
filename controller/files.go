@@ -2,10 +2,9 @@ package controller
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"io"
 	"net/http"
-
-	"github.com/pkg/errors"
 
 	"github.com/Falokut/go-kit/http/apierrors"
 	"github.com/Falokut/go-kit/http/types"
@@ -16,7 +15,7 @@ import (
 //go:generate mockgen -source=service.go -destination=mocks/service.go
 type StorageService interface {
 	UploadFile(ctx context.Context, req entity.UploadFileRequest) (string, error)
-	GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.Metadata, io.Reader, error)
+	GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.Metadata, io.ReadSeekCloser, error)
 	IsFileExist(ctx context.Context, req domain.FileRequest) (bool, error)
 	DeleteFile(ctx context.Context, req domain.FileRequest) error
 }
@@ -81,19 +80,23 @@ func (c Files) GetFile(ctx context.Context, rangeOpt *types.RangeOption, req dom
 		return nil, c.handleError(err)
 	}
 
-	var partialDataInfo *types.PartialDataInfo
-	if rangeOpt != nil {
-		partialDataInfo = &types.PartialDataInfo{
-			RangeStartByte: rangeOpt.Start,
-			RangeEndByte:   rangeOpt.End,
-		}
-	}
+	partialDataInfo := c.buildPartialDataInfo(rangeOpt)
 	return &types.FileData{
 		PartialDataInfo: partialDataInfo,
 		ContentType:     metadata.ContentType,
 		ContentReader:   reader,
 		TotalFileSize:   metadata.Size,
 	}, nil
+}
+
+func (c Files) buildPartialDataInfo(rangeOpt *types.RangeOption) *types.PartialDataInfo {
+	if rangeOpt == nil {
+		return nil
+	}
+	return &types.PartialDataInfo{
+		RangeStartByte: rangeOpt.Start,
+		RangeEndByte:   rangeOpt.End,
+	}
 }
 
 // IsFileExist
