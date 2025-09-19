@@ -7,9 +7,10 @@ import (
 	"io"
 	"slices"
 
+	"storage-service/domain"
+	"storage-service/entity"
+
 	"github.com/Falokut/go-kit/http/types"
-	"github.com/Falokut/storage_service/domain"
-	"github.com/Falokut/storage_service/entity"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -23,15 +24,23 @@ type FileStorage interface {
 	DeleteFile(ctx context.Context, filename string, category string) error
 }
 
+type Pending interface {
+	Enqueue(ctx context.Context, fileName string, category string) error
+	Rollback(ctx context.Context, fileName string, category string) error
+	Commit(ctx context.Context, fileName string, category string) error
+}
+
 type Files struct {
 	storage            FileStorage
 	supportedFileTypes []string
+	pendingSrv         Pending
 }
 
-func NewFiles(storage FileStorage, supportedFileTypes []string) Files {
+func NewFiles(storage FileStorage, supportedFileTypes []string, pendingSrv Pending) Files {
 	return Files{
 		storage:            storage,
 		supportedFileTypes: supportedFileTypes,
+		pendingSrv:         pendingSrv,
 	}
 }
 
@@ -94,6 +103,13 @@ func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (st
 		return "", errors.WithMessage(err, "reset reader position")
 	}
 
+	if req.Pending {
+		err = s.pendingSrv.Enqueue(ctx, filename, req.Category)
+		if err != nil {
+			return "", errors.WithMessage(err, "enqueue pending file")
+		}
+	}
+
 	err = s.storage.UploadFile(ctx, metadata, readSeeker)
 	if err != nil {
 		return "", errors.WithMessage(err, "save file")
@@ -126,6 +142,22 @@ func (s Files) DeleteFile(ctx context.Context, req domain.FileRequest) error {
 	err := s.storage.DeleteFile(ctx, req.Filename, req.Category)
 	if err != nil {
 		return errors.WithMessage(err, "delete file")
+	}
+	return nil
+}
+
+func (s Files) Rollback(ctx context.Context, req domain.FileRequest) error {
+	err := s.pendingSrv.Rollback(ctx, req.Filename, req.Category)
+	if err != nil {
+		return errors.WithMessage(err, "rollback file")
+	}
+	return nil
+}
+
+func (s Files) Commit(ctx context.Context, req domain.FileRequest) error {
+	err := s.pendingSrv.Commit(ctx, req.Filename, req.Category)
+	if err != nil {
+		return errors.WithMessage(err, "commit file")
 	}
 	return nil
 }

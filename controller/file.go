@@ -2,14 +2,16 @@ package controller
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"io"
 	"net/http"
 
+	"github.com/pkg/errors"
+
+	"storage-service/domain"
+	"storage-service/entity"
+
 	"github.com/Falokut/go-kit/http/apierrors"
 	"github.com/Falokut/go-kit/http/types"
-	"github.com/Falokut/storage_service/domain"
-	"github.com/Falokut/storage_service/entity"
 )
 
 //go:generate mockgen -source=service.go -destination=mocks/service.go
@@ -18,6 +20,8 @@ type StorageService interface {
 	GetFile(ctx context.Context, req domain.FileRequest, opt *types.RangeOption) (*entity.Metadata, io.ReadSeekCloser, error)
 	IsFileExist(ctx context.Context, req domain.FileRequest) (bool, error)
 	DeleteFile(ctx context.Context, req domain.FileRequest) error
+	Rollback(ctx context.Context, req domain.FileRequest) error
+	Commit(ctx context.Context, req domain.FileRequest) error
 }
 
 type Files struct {
@@ -40,6 +44,7 @@ func NewFiles(service StorageService) Files {
 //
 //	@Param			category	path		string	true	"Категория файла"
 //	@Param			filename	path		string	false	"имя файла"
+//	@Param			pending		query		bool	false	"пометить как pending"
 //
 //	@Param			body		body		[]byte	true	"содержимое файла"
 //
@@ -97,6 +102,40 @@ func (c Files) buildPartialDataInfo(rangeOpt *types.RangeOption) *types.PartialD
 		RangeStartByte: rangeOpt.Start,
 		RangeEndByte:   rangeOpt.End,
 	}
+}
+
+// Commit
+//
+//	@Tags			file
+//	@Summary		Commit
+//	@Description	Подтвердить загрузку файла в хранилище
+//
+//	@Param			category	path		string	true	"Категория файла"
+//	@Param			filename	path		string	true	"Идентификатор файла"
+//
+//	@Success		200			{array}		byte
+//	@Failure		400			{object}	apierrors.Error
+//	@Failure		500			{object}	apierrors.Error
+//	@Router			/file/{category}/{filename}/commit [POST]
+func (c Files) Commit(ctx context.Context, req domain.FileRequest) error {
+	return c.service.Commit(ctx, req)
+}
+
+// Rollback
+//
+//	@Tags			file
+//	@Summary		Rollback file
+//	@Description	Отменить загрузку файла в хранилище
+//
+//	@Param			category	path		string	true	"Категория файла"
+//	@Param			filename	path		string	true	"Идентификатор файла"
+//
+//	@Success		200			{array}		byte
+//	@Failure		400			{object}	apierrors.Error
+//	@Failure		500			{object}	apierrors.Error
+//	@Router			/file/{category}/{filename}/rollback [POST]
+func (c Files) Rollback(ctx context.Context, req domain.FileRequest) error {
+	return c.service.Rollback(ctx, req)
 }
 
 // IsFileExist

@@ -12,5 +12,11 @@ type Metadata struct {
 type UploadFileRequest struct {
 	Filename      string
 	Category      string
+	Pending       bool
 	ContentReader io.Reader
+}
+
+type FileToDelete struct {
+	Filename string
+	Category string
 }
