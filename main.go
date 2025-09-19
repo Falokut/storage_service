@@ -1,44 +1,51 @@
-//nolint:importShadow
 package main
 
 import (
-	"fmt"
+	"storage-service/assembly"
+	"storage-service/conf"
+	"storage-service/routes"
 
-	"github.com/Falokut/go-kit/app"
+	"github.com/Falokut/go-kit/bootstrap"
 	"github.com/Falokut/go-kit/shutdown"
-	"github.com/Falokut/storage_service/assembly"
 )
 
-//	@title			storage_service
-//	@version		1.0.0
-//	@description	Сервис для хранения файлов
-//	@BasePath		/api/storage-service
+var (
+	version = "1.0.0"
+)
 
+// @title						storage-service
+// @version					1.0.0
+// @description				Сервис для заказа еды
+// @BasePath					/api/storage-service
+//
+// @securityDefinitions.apikey	Bearer
+// @in							header
+// @name						Authorization
+// @description				Type "Bearer" followed by a space and JWT token.
+//
 //go:generate swag init --parseDependency
 //go:generate rm -f docs/swagger.json docs/docs.go
 func main() {
-	app, err := app.New()
+	boot := bootstrap.New(version, conf.Remote{}, routes.EndpointDescriptors(routes.Router{}))
+	app := boot.App
+	logger := app.Logger()
+
+	assembly, err := assembly.New(boot)
 	if err != nil {
-		fmt.Println("shutdown: error while creating app ", err)
-		return
+		boot.Fatal(err)
 	}
-	logger := app.GetLogger()
-	assembly, err := assembly.New(app.Context(), logger)
-	if err != nil {
-		logger.Fatal(app.Context(), err)
-	}
+
 	app.AddRunners(assembly.Runners()...)
 	app.AddClosers(assembly.Closers()...)
-
-	err = app.Run()
-	if err != nil {
-		app.Shutdown()
-		logger.Fatal(app.Context(), err)
-	}
 
 	shutdown.On(func() {
 		logger.Info(app.Context(), "starting shutdown")
 		app.Shutdown()
 		logger.Info(app.Context(), "shutdown completed")
 	})
+
+	err = app.Run()
+	if err != nil {
+		boot.Fatal(err)
+	}
 }

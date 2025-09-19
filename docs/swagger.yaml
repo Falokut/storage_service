@@ -22,8 +22,8 @@ definitions:
     type: object
 info:
   contact: {}
-  description: Сервис для хранения файлов
-  title: storage_service
+  description: Сервис для заказа еды
+  title: storage-service
   version: 1.0.0
 paths:
   /file/{category}:
@@ -38,9 +38,13 @@ paths:
         required: true
         type: string
       - description: имя файла
-        in: query
+        in: path
         name: filename
         type: string
+      - description: пометить как pending
+        in: query
+        name: pending
+        type: boolean
       - description: содержимое файла
         in: body
         name: body
@@ -88,8 +92,7 @@ paths:
       responses:
         "200":
           description: OK
-          schema:
-            type: object
+          schema: {}
         "400":
           description: Bad Request
           schema:
@@ -123,6 +126,7 @@ paths:
           description: OK
           schema:
             items:
+              format: int32
               type: integer
             type: array
         "400":
@@ -138,6 +142,39 @@ paths:
           schema:
             $ref: '#/definitions/apierrors.Error'
       summary: Get file
+      tags:
+      - file
+  /file/{category}/{filename}/commit:
+    post:
+      description: Подтвердить загрузку файла в хранилище
+      parameters:
+      - description: Категория файла
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: Идентификатор файла
+        in: path
+        name: filename
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              format: int32
+              type: integer
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+      summary: Commit
       tags:
       - file
   /file/{category}/{filename}/exist:
@@ -178,4 +215,43 @@ paths:
       summary: Is file exist
       tags:
       - file
+  /file/{category}/{filename}/rollback:
+    post:
+      description: Отменить загрузку файла в хранилище
+      parameters:
+      - description: Категория файла
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: Идентификатор файла
+        in: path
+        name: filename
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              format: int32
+              type: integer
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/apierrors.Error'
+      summary: Rollback file
+      tags:
+      - file
+securityDefinitions:
+  Bearer:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

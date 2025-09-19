@@ -1,0 +1,20 @@
+{
+  "logLevel": "debug",
+  "db": {
+    "schema": "storage_service",
+    "host": "{{psql host}}",
+    "port": 5432,
+    "database": "postgres",
+    "username": "postgres",
+    "password": "{{password for psql}}"
+  },
+  "maxFileSizeMb": 9000,
+  "minio": {
+    "endpoint": "minio:9000",
+    "uploadFileThreads": 4
+  },
+  "pending": {
+    "fileLifetimeInMin": 10,
+    "maxFilesToDelete": 1
+  }
+}

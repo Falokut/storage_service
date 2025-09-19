@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -12,6 +12,8 @@ RUN apk update && apk add wget
 
 WORKDIR /
 COPY --from=builder  /bin /bin
+COPY /migrations /migrations
+COPY /conf /conf
 
 EXPOSE 8080
 

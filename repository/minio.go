@@ -8,19 +8,19 @@ import (
 	"github.com/minio/minio-go/v7"
 	"github.com/pkg/errors"
 
-	"github.com/Falokut/go-kit/client/minio"
+	"storage-service/domain"
+	"storage-service/entity"
+
 	"github.com/Falokut/go-kit/http/types"
 	"github.com/Falokut/go-kit/log"
-	"github.com/Falokut/storage_service/domain"
-	"github.com/Falokut/storage_service/entity"
 )
 
 type MinioStorage struct {
 	logger log.Logger
-	cli    minio_client.Client
+	cli    *minio.Client
 }
 
-func NewMinioStorage(logger log.Logger, cli minio_client.Client) MinioStorage {
+func NewMinioStorage(logger log.Logger, cli *minio.Client) MinioStorage {
 	return MinioStorage{
 		logger: logger,
 		cli:    cli,
@@ -76,14 +76,16 @@ func (s MinioStorage) GetFile(
 		return nil, nil, domain.ErrFileNotFound
 	case err != nil:
 		return nil, nil, errors.WithMessage(err, "get object info")
-	default:
-		return &entity.Metadata{
-			Filename:    filename,
-			Category:    category,
-			ContentType: objectInfo.ContentType,
-			Size:        objectInfo.Size,
-		}, obj, nil
 	}
+
+	metadata := &entity.Metadata{
+		Filename:    filename,
+		Category:    category,
+		ContentType: objectInfo.ContentType,
+		Size:        objectInfo.Size,
+	}
+
+	return metadata, obj, nil
 }
 
 func (s MinioStorage) IsFileExist(ctx context.Context, filename string, category string) (exist bool, err error) {
@@ -116,12 +118,13 @@ func (s MinioStorage) createBucketIfNotExist(ctx context.Context, bucketName str
 	if err != nil {
 		return errors.WithMessage(err, "check is bucket exists")
 	}
-	if !exists {
-		s.logger.Info(ctx, "creating bucket", log.Any("bucketName", bucketName))
-		err = s.cli.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
-		if err != nil {
-			return errors.WithMessage(err, "make bucket")
-		}
+	if exists {
+		return nil
+	}
+	s.logger.Info(ctx, "creating bucket", log.Any("bucketName", bucketName))
+	err = s.cli.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
+	if err != nil && minio.ToErrorResponse(err).Code != "BucketAlreadyOwnedByYou" {
+		return errors.WithMessage(err, "make bucket")
 	}
 	return nil
 }
