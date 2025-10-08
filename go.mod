@@ -62,7 +62,7 @@ require (
 )
 
 require (
-	github.com/Falokut/go-kit v1.9.3
+	github.com/Falokut/go-kit v1.9.4
 	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/pkg/errors v0.9.1
 	golang.org/x/net v0.41.0 // indirect
