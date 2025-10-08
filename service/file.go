@@ -135,16 +135,3 @@ func (s Files) Commit(ctx context.Context, req domain.FileRequest) error {
 	}
 	return nil
 }
-
-func detectMimeTypeFromSeeker(rs io.ReadSeeker) (string, error) {
-	peekBuf := make([]byte, 512)
-	n, err := rs.Read(peekBuf)
-	if err != nil && err != io.EOF {
-		return "", err
-	}
-	_, err = rs.Seek(0, io.SeekStart)
-	if err != nil {
-		return "", err
-	}
-	return mimetype.Detect(peekBuf[:n]).String(), nil
-}
