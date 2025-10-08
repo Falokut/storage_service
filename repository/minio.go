@@ -34,13 +34,14 @@ func (s MinioStorage) UploadFile(ctx context.Context, metadata entity.Metadata, 
 	}
 
 	s.logger.Info(ctx, "save file",
-		log.Any("bucketName", metadata.Category),
-		log.Any("filename", metadata.Filename),
+		log.String("bucketName", metadata.Category),
+		log.String("filename", metadata.Filename),
+		log.String("filePrettyName", metadata.PrettyName),
 	)
 
 	putOptions := minio.PutObjectOptions{
 		UserMetadata: map[string]string{
-			"Name": metadata.Filename,
+			entity.FilePrettyNameMetadataField: metadata.PrettyName,
 		},
 		ContentType: metadata.ContentType,
 	}
@@ -80,6 +81,7 @@ func (s MinioStorage) GetFile(
 
 	metadata := &entity.Metadata{
 		Filename:    filename,
+		PrettyName:  objectInfo.Metadata.Get(entity.FileMinioMetadataPrettyNameField),
 		Category:    category,
 		ContentType: objectInfo.ContentType,
 		Size:        objectInfo.Size,

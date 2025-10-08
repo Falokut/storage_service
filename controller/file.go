@@ -43,8 +43,9 @@ func NewFiles(service StorageService) Files {
 //	@Produce		*/*
 //
 //	@Param			category	path		string	true	"Категория файла"
-//	@Param			filename	path		string	false	"имя файла"
+//	@Param			filename	path		string	false	"имя файла в файловом хранилище"
 //	@Param			pending		query		bool	false	"пометить как pending"
+//	@Param			prettyName	query		string	false	"'красивое' имя файла"
 //
 //	@Param			body		body		[]byte	true	"содержимое файла"
 //
@@ -56,6 +57,7 @@ func (c Files) UploadFile(ctx context.Context, r *http.Request, req domain.Uploa
 	filename, err := c.service.UploadFile(ctx,
 		entity.UploadFileRequest{
 			Filename:      req.Filename,
+			PrettyName:    req.PrettyName,
 			Category:      req.Category,
 			ContentReader: r.Body,
 		})
@@ -88,6 +90,7 @@ func (c Files) GetFile(ctx context.Context, rangeOpt *types.RangeOption, req dom
 	partialDataInfo := c.buildPartialDataInfo(rangeOpt)
 	return &types.FileData{
 		PartialDataInfo: partialDataInfo,
+		PrettyName:      metadata.PrettyName,
 		ContentType:     metadata.ContentType,
 		ContentReader:   reader,
 		TotalFileSize:   metadata.Size,

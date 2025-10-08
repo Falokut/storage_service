@@ -49,41 +49,17 @@ func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (st
 		return "", domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
 	}
 
-	readSeeker, ok := req.ContentReader.(io.ReadSeeker)
-	var buf []byte
-	var err error
+	header := make([]byte, 512)
+	n, _ := io.ReadFull(req.ContentReader, header)
+	reader := io.MultiReader(bytes.NewReader(header[:n]), req.ContentReader)
 
-	if !ok {
-		buf, err = io.ReadAll(req.ContentReader)
-		if err != nil {
-			return "", errors.WithMessage(err, "read content for mime detection")
-		}
-		readSeeker = bytes.NewReader(buf)
-	}
-
-	var contentType string
-	if ok {
-		contentType, err = detectMimeTypeFromSeeker(readSeeker)
-	} else {
-		contentType = mimetype.Detect(buf).String()
-	}
-	if err != nil {
-		return "", errors.WithMessage(err, "detect file mime type")
-	}
+	contentType := mimetype.Detect(header[:n]).String()
 
 	if len(s.supportedFileTypes) != 0 && !slices.Contains(s.supportedFileTypes, contentType) {
 		return "", domain.NewInvalidArgumentError(
 			fmt.Sprintf("file type is not supported. file type: '%s'", contentType),
 			domain.ErrCodeUnsupportedFileType,
 		)
-	}
-
-	fileSize, err := readSeeker.Seek(0, io.SeekEnd)
-	if err != nil {
-		return "", err
-	}
-	if fileSize <= 0 {
-		return "", domain.NewInvalidArgumentError("file has zero size", domain.ErrCodeFileHasZeroSize)
 	}
 
 	filename := req.Filename
@@ -93,29 +69,27 @@ func (s Files) UploadFile(ctx context.Context, req entity.UploadFileRequest) (st
 
 	metadata := entity.Metadata{
 		Filename:    filename,
+		PrettyName:  req.PrettyName,
 		Category:    req.Category,
 		ContentType: contentType,
-		Size:        fileSize,
+		Size:        -1, // размер неизвестен заранее
 	}
 
-	_, err = readSeeker.Seek(0, io.SeekStart)
-	if err != nil {
-		return "", errors.WithMessage(err, "reset reader position")
-	}
-
+	// Если файл Pending
 	if req.Pending {
-		err = s.pendingSrv.Enqueue(ctx, filename, req.Category)
+		err := s.pendingSrv.Enqueue(ctx, filename, req.Category)
 		if err != nil {
 			return "", errors.WithMessage(err, "enqueue pending file")
 		}
 	}
 
-	err = s.storage.UploadFile(ctx, metadata, readSeeker)
+	// Streaming upload в хранилище
+	err := s.storage.UploadFile(ctx, metadata, reader)
 	if err != nil {
 		return "", errors.WithMessage(err, "save file")
 	}
 
-	return metadata.Filename, nil
+	return filename, nil
 }
 
 func (s Files) GetFile(
